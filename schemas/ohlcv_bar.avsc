@@ -1,0 +1,17 @@
+{
+    "type": "record",
+    "name": "OhlcvBar",
+    "namespace": "com.financeetl",
+    "doc": "A 1-minute OHLCV bar aggregated from tick events",
+    "fields": [
+        {"name": "symbol", "type": "string", "doc": "Ticker symbol"},
+        {"name": "open", "type": "double", "doc": "First price in the window"},
+        {"name": "high", "type": "double", "doc": "Hihgest price in the window"},
+        {"name": "low", "type": "double", "doc": "Lowest price in the window"},
+        {"name": "close", "type": "double", "doc": "Last price in the window"},
+        {"name": "volume", "type": "long", "doc": "Total volume in the window"},
+        {"name": "window_start", "type": "long", "doc": "Window start - Unix ms (UTC)"},
+        {"name": "window_end", "type": "long", "doc": "Window end - Unix ms (UTC)"}
+
+    ]
+}

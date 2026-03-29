@@ -1,0 +1,16 @@
+{
+    "type": "record",
+    "name": "TickEvent",
+    "namespace": "com.financeetl",
+    "doc": "A single price tick from a market data source",
+    "fields": [
+        {"name": "symbol", "type": "string", "doc": "Ticker symbol e.g. AAPL"},
+        {"name": "price", "type": "double", "doc": "Last trade price"},
+        {"name": "bid", "type": "double", "doc": "Best bid price"},
+        {"name": "ask", "type": "double", "doc": "Best ask price"},
+        {"name": "volume", "type": "long", "doc": "Cumulative volume for the day"},
+        {"name": "timestamp", "type": "long", "doc": "Unix timestamp in milliseconds (UTC)"},
+        {"name": "source", "type": "string", "doc": "websocket or rest"},
+        {"name": "bid_size", "type": ["null", "long"], "default": null, "doc": "Optional bid size - nullable for schema evolution demo"}
+    ]
+}
