@@ -1,0 +1,40 @@
+# Kafka
+confluent-kafka[avro]==2.3.0
+fastavro==1.9.4
+
+# Stream processing
+faust-streaming==0.11.3
+
+# HTTP & WebSocket
+requests==2.31.0
+websocket-client==1.7.0
+yfinance==0.2.38
+
+# Data
+pandas==2.2.1
+pyarrow==15.0.2
+numpy==1.26.4
+
+# Databases
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.29
+redis==5.0.3
+
+# NLP / Sentiment
+vaderSentiment==3.3.2
+
+# Data quality
+great-expectations==0.18.12
+
+# API
+fastapi>=0.115.0
+uvicorn==0.29.0
+
+# Observability
+prometheus-client==0.20.0
+opentelemetry-sdk==1.23.0
+opentelemetry-instrumentation-fastapi==0.44b0
+
+# Testing
+pytest==8.1.1
+pytest-asyncio==0.23.6
