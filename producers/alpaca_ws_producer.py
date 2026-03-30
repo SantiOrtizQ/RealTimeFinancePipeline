@@ -12,7 +12,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
-SYMBOLS=["AAPL", "TSLA", "MSFT", "GOOGL", "AMZN", "NVDA"]
+SYMBOLS=os.getenv("SYMBOLS")
 
 WS_URL="wss://stream.data.alpaca.markets/v2/iex"
 
