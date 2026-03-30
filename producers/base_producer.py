@@ -1,4 +1,3 @@
-from ensurepip import bootstrap
 import os
 import logging
 import time

@@ -38,3 +38,6 @@ opentelemetry-instrumentation-fastapi==0.44b0
 # Testing
 pytest==8.1.1
 pytest-asyncio==0.23.6
+
+# To add .env
+python-dotenv==1.0.1
