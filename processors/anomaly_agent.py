@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import faust
 from sqlalchemy import create_engine, text
 
+from prometheus_client import Counter, start_http_server
+
 load_dotenv()
 logging.basicConfig(logging.INFO)
 logger=logging.getLogger(__name__)
@@ -26,6 +28,17 @@ app=faust.App(
     value_serializer="json"
 )
 
+
+TICKS_PROCESSED=Counter(
+    "anomaly_ticks_processed_total",
+    "Total ticks processed by the anomaly agent",
+    ["symbol"]
+)
+ANOMALIES_DETECTED=Counter(
+    "anomaly_detections_total",
+    "Total anomalies detected",
+    ["symbol"]
+)
 
 class TickEvent(faust.Record):
     symbol: str
@@ -103,6 +116,8 @@ def insert_anomaly(symbol: str, price: float, mean: float, std_dev: float, z_sco
 @app.agent(ticks_topic)
 async def detect_anomalies(ticks):
     async for tick in ticks:
+        TICKS_PROCESSED.labels(symbol=tick.symbol).inc()
+
         symbol=tick.symbol
 
         if symbol not in price_windows:
@@ -125,6 +140,7 @@ async def detect_anomalies(ticks):
                 f"price={tick.price:.4f} mean={mean:.4f} "
                 f"std={std_dev:.4f} z={z_score:.2f}"
             )
+            ANOMALIES_DETECTED.labels(symbol=symbol).inc()
             try:
                 insert_anomaly(
                     symbol=symbol,
@@ -142,6 +158,7 @@ async def detect_anomalies(ticks):
 
 @app.on_started.connect
 async def on_started(app, **kwargs):
+    start_http_server(6067)
     ensure_table()
     logger.info("Anomaly detection agent started")
 

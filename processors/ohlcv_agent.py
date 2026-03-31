@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import faust
 from sqlalchemy import create_engine, text
 
+from prometheus_client import Counter, Histogram, start_http_server
+
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
@@ -19,6 +21,21 @@ app=faust.App(
     "ohlcv-agent",
     broker=f"kafka://{KAFKA_BOOTSTRAP}",
     value_serializer="json"
+)
+
+TICKS_PROCESSED=Counter(
+    "ohlcv_ticks_processed_total",
+    "Total number of ticks processed by the OHLCV agent",
+    ["symbol"]
+)
+BARS_FLUSHED=Counter(
+    "ohlcv_bars_flushed_total",
+    "total number of OHLCV bars flushed to TimescaleDB",
+    ["symbol"]
+)
+BAR_FLUSH_LATENCY=Histogram(
+    "ohlcv_bar_flush_latency_seconds",
+    "Latency of flushing a bar to TimescaleDB"
 )
 
 class TickEvent(faust.Record):
@@ -132,7 +149,8 @@ async def flush_windows():
         )
 
         try:
-            insert_bar(bar)
+            with BAR_FLUSH_LATENCY.time():
+                insert_bar(bar)
             await ohlcv_topic.send(key=symbol, value=bar)
             logger.info(
                 f"Flushed bar: {symbol} | "
@@ -146,6 +164,8 @@ async def flush_windows():
 @app.agent(ticks_topic)
 async def aggregate_ticks(ticks):
     async for tick in ticks:
+        TICKS_PROCESSED.labels(symbol=tick.symbol).inc()
+
         window_size_ms=60_000
         window_start=(tick.timestamp//window_size_ms)*window_size_ms
         key=(tick.symbol, window_start)
@@ -168,6 +188,7 @@ async def aggregate_ticks(ticks):
 
 @app.on_started.connect
 async def on_started(app, **kwargs):
+    start_http_server(6066)
     ensure_table()
     logger.info("OHLCV agent started")
 

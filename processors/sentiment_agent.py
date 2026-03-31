@@ -5,6 +5,8 @@ import faust
 from sqlalchemy import create_engine, text
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+from prometheus_client import Counter, start_http_server
+
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
@@ -16,10 +18,16 @@ TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
 TIMESCALE_URL=f"postgresql://{TIMESCALE_USER}:{TIMESCALE_PASS}@localhost:5432/{TIMESCALE_DB}"
 
-app=faust.app(
+app=faust.App(
     "sentiment-agent",
     broker=f"kafka://{KAFKA_BOOTSTRAP}",
     value_serializer="json"
+)
+
+ARTICLES_SCORED=Counter(
+    "sentiment_articles_scored_total",
+    "Total articles scored by the sentiment agent",
+    ["sentiment"]
 )
 
 analyzer=SentimentIntensityAnalyzer()
@@ -93,6 +101,7 @@ def score_sentiment(title: str, description: str=None) -> dict:
 
 
 def insert_sentiment(event: NewsEvent, scores: dict):
+    ARTICLES_SCORED.labels(sentiment=scores["sentiment"]).inc()
     with engine.connect() as conn:
         conn.execute(text("""
             INSERT INTO news_sentiment
@@ -139,6 +148,7 @@ async def score_news(events):
 
 @app.on_started.connect
 async def on_started(app, **kwargs):
+    start_http_server(6068)
     ensure_table()
     logger.info("Sentiment agent started")
 
