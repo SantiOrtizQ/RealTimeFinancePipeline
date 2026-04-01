@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 import faust
 from sqlalchemy import create_engine, text
+import redis as redis_client
 
 from prometheus_client import Counter, Histogram, start_http_server
 
@@ -64,6 +65,11 @@ ohlcv_topic=app.topic("processed.ohlcv", value_type=OhlcvBar)
 
 engine=create_engine(TIMESCALE_URL)
 
+redis=redis_client.Redis(
+    host=os.getenv("REDIS_HOST", "localhost"),
+    port=int(os.getenv("REDIST_PORT", 6379)),
+    decode_responses=True
+)
 
 def ensure_table():
     with engine.connect() as conn:
@@ -184,6 +190,7 @@ async def aggregate_ticks(ticks):
             w["low"]=min(w["low"], tick.price)
             w["close"]=tick.price
             w["volume"] += tick.volume
+            redis.set(f"ticker:{tick.symbol}", tick.price, ex=10)
 
 
 @app.on_started.connect
