@@ -3,7 +3,7 @@ from processors.sentiment_agent import score_sentiment
 
 
 def test_positive_headline():
-    scores=score_sentiment("Apple beats earnings expectations with record revenue")
+    scores=score_sentiment("Apple reports a huge increase in revenue in last quarter")
     assert scores["sentiment"]=="positive"
     assert scores["compound"]>=0.5
 

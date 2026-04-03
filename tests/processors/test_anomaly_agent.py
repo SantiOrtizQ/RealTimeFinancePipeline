@@ -21,7 +21,7 @@ def test_z_score_detects_spike():
 
 def test_z_score_detects_drop():
     prices=deque([100.0]*19+[10.0])
-    mean_std_dev, z_score=compute_z_score(prices)
+    mean, std_dev, z_score=compute_z_score(prices)
     assert z_score<-3.0, "A price drop should produce a negative z-score"
 
 def test_z_score_flat_prices():

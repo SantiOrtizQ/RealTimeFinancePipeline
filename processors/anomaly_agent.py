@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, text
 from prometheus_client import Counter, start_http_server
 
 load_dotenv()
-logging.basicConfig(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
 
@@ -156,7 +156,7 @@ async def detect_anomalies(ticks):
             logger.debug(f"{symbol} z={z_score:.2f} - normal")
 
 
-@app.on_started.connect
+@app.task
 async def on_started(app, **kwargs):
     start_http_server(6067)
     ensure_table()

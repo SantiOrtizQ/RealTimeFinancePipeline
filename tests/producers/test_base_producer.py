@@ -74,4 +74,4 @@ def test_delivery_report_logs_error(mock_producer, mock_registry, mock_serialize
     with caplog.at_level(logging.ERROR):
         producer._delivery_report(err="some error", msg=mock_msg)
     
-    assert "Delivery failed" in caplog.next
+    assert "Delivery failed" in caplog.text

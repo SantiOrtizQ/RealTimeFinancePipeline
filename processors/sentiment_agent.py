@@ -36,10 +36,10 @@ analyzer=SentimentIntensityAnalyzer()
 class NewsEvent(faust.Record):
     article_id: str
     title: str
-    description: str=None
     source: str
     url: str
     published_at: int
+    description: str | None=None
     symbols: list=None
 
 
@@ -79,7 +79,7 @@ def ensure_table():
 def score_sentiment(title: str, description: str=None) -> dict:
     text_to_score=title
     if description:
-        text_to_score=f"{title}. {description}"
+        text_to_score=f"{title}.\n{description}"
     
     scores=analyzer.polarity_scores(text_to_score)
 
@@ -146,7 +146,7 @@ async def score_news(events):
             logger.error(f"Failed to score article {event.article_id}: {e}")
 
 
-@app.on_started.connect
+@app.task
 async def on_started(app, **kwargs):
     start_http_server(6068)
     ensure_table()
