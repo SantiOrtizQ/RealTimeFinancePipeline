@@ -14,7 +14,7 @@ KAFKA_BOOTSTRAP=os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 TIMESCALE_USER=os.getenv("TIMESCALE_USER", "financeuser")
 TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
-TIMESCALE_URL=f"postgres://{TIMESCALE_USER}:{TIMESCALE_PASS}@localhost:5432/{TIMESCALE_DB}"
+TIMESCALE_URL=f"postgresql://{TIMESCALE_USER}:{TIMESCALE_PASS}@localhost:5432/{TIMESCALE_DB}"
 
 
 app=faust.App(
@@ -101,7 +101,7 @@ async def process_dlq(events):
             logger.error(f"Failed to persist DLQ event: {e}")
 
 
-@app.on_started.connect
+@app.task
 async def on_started(app, **kwargs):
     ensure_table()
     logger.info("DLQ agent started")

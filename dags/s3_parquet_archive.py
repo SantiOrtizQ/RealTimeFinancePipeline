@@ -10,7 +10,7 @@ TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
 TIMESCALE_URL=f"postgresql://{TIMESCALE_USER}:{TIMESCALE_PASS}@timescaledb:5432/{TIMESCALE_DB}"
 
-S3_BUCKET=os.getenv("S3_BUCKET", "finance-etl-bucket")
+S3_BUCKET=os.getenv("S3_BUCKET", "finance-stock-etl-bucket")
 AWS_CONN_ID="aws_s3"
 
 

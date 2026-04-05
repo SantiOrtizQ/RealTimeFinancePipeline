@@ -1,8 +1,11 @@
 import os
+import time
 import logging
+import signal
+import threading
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-import faust
+from confluent_kafka import Consumer
 from sqlalchemy import create_engine, text
 import redis as redis_client
 
@@ -18,11 +21,7 @@ TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
 TIMESCALE_URL=f"postgresql://{TIMESCALE_USER}:{TIMESCALE_PASS}@localhost:5432/{TIMESCALE_DB}"
 
-app=faust.App(
-    "ohlcv-agent",
-    broker=f"kafka://{KAFKA_BOOTSTRAP}",
-    value_serializer="json"
-)
+WINDOW_SIZE_MS=60_000
 
 TICKS_PROCESSED=Counter(
     "ohlcv_ticks_processed_total",
@@ -39,30 +38,6 @@ BAR_FLUSH_LATENCY=Histogram(
     "Latency of flushing a bar to TimescaleDB"
 )
 
-class TickEvent(faust.Record):
-    symbol: str
-    price: float
-    bid: float
-    ask: float
-    volume: int
-    timestamp: int
-    source: str
-    bid_size: int=None
-
-class OhlcvBar(faust.Record):
-    symbol: str
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: int
-    window_start: int
-    window_end: int
-
-
-ticks_topic=app.topic("raw.ticks", value_type=TickEvent)
-ohlcv_topic=app.topic("processed.ohlcv", value_type=OhlcvBar)
-
 engine=create_engine(TIMESCALE_URL)
 
 redis=redis_client.Redis(
@@ -70,6 +45,9 @@ redis=redis_client.Redis(
     port=int(os.getenv("REDIST_PORT", 6379)),
     decode_responses=True
 )
+
+windows: dict={}
+running=True
 
 def ensure_table():
     with engine.connect() as conn:
@@ -88,14 +66,14 @@ def ensure_table():
         conn.execute(text("""
             SELECT create_hypertable(
                           'ohlcv_bars', 'window_start',
-                          if_not_exists=>TRUE
+                          if_not_exists => TRUE
                           );
     """))
         conn.commit()
     logger.info("ohlcv_bars hypertable ready")
 
 
-def insert_bar(bar: OhlcvBar):
+def insert_bar(symbol, open, high, low, close, volume, ws, we):
     with engine.connect() as conn:
         conn.execute(text("""
             INSERT INTO ohlcv_bars
@@ -104,35 +82,24 @@ def insert_bar(bar: OhlcvBar):
                 (:symbol, :open, :high, :low, :close, :volume,
                           to_timestamp(:ws/1000.0), to_timestamp(:we/1000.0))
         """), {
-            "symbol": bar.symbol,
-            "open": bar.open,
-            "high": bar.high,
-            "low": bar.low,
-            "close": bar.close,
-            "volume": bar.volume,
-            "ws": bar.window_start,
-            "we": bar.window_end
+            "symbol": symbol,
+            "open": open,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "ws": ws,
+            "we": we
         })
         conn.commit()
 
 
-@app.agent(ticks_topic)
-async def process_ticks(ticks):
-    async for tick in ticks:
-        logger.info(f"Recieved tick: {tick.symbol} @ {tick.price}")
-
-
-windows={}
-
-
-@app.timer(interval=60.0)
-async def flush_windows():
+def flush_windows(force: bool=False):
     if not windows:
         return
     
     now_ms=int(datetime.now(timezone.utc).timestamp()*1000)
-    window_size_ms=60_000
-    current_window=(now_ms//window_size_ms)*window_size_ms
+    current_window=(now_ms//WINDOW_SIZE_MS)*WINDOW_SIZE_MS
 
     to_flush=[
         key for key in windows if key[1]<current_window
@@ -141,64 +108,105 @@ async def flush_windows():
     for key in to_flush:
         data=windows.pop(key)
         symbol, window_start=key
-        window_end=window_start+window_size_ms
-
-        bar=OhlcvBar(
-            symbol=symbol,
-            open=data["open"],
-            high=data["high"],
-            low=data["low"],
-            close=data["close"],
-            volume=data["volume"],
-            window_start=window_start,
-            window_end=window_end
-        )
-
+        window_end=window_start+WINDOW_SIZE_MS
         try:
             with BAR_FLUSH_LATENCY.time():
-                insert_bar(bar)
-            await ohlcv_topic.send(key=symbol, value=bar)
+                insert_bar(
+                    symbol,
+                    data['open'],
+                    data['high'],
+                    data['low'],
+                    data['close'],
+                    data['volume'],
+                    window_start,
+                    window_end
+                )
+            BARS_FLUSHED.labels(symbol=symbol).inc()
             logger.info(
                 f"Flushed bar: {symbol} | "
-                f"O={bar.open} H={bar.high} L={bar.low} C={bar.close} "
-                f"V={bar.volume}"
+                f"O={data['open']} H={data['high']} L={data['low']} C={data['close']} "
+                f"V={data['volume']}"
             )
         except Exception as e:
             logger.error(f"Failed to flush bar for {symbol}: {e}")
 
-
-@app.agent(ticks_topic)
-async def aggregate_ticks(ticks):
-    async for tick in ticks:
-        TICKS_PROCESSED.labels(symbol=tick.symbol).inc()
-
-        window_size_ms=60_000
-        window_start=(tick.timestamp//window_size_ms)*window_size_ms
-        key=(tick.symbol, window_start)
-
-        if key not in windows:
-            windows[key]={
-                "open": tick.price,
-                "high": tick.price,
-                "low": tick.price,
-                "close": tick.price,
-                "volume": tick.volume
-            }
-        else:
-            w=windows[key]
-            w["high"]=max(w["high"], tick.price)
-            w["low"]=min(w["low"], tick.price)
-            w["close"]=tick.price
-            w["volume"] += tick.volume
-            redis.set(f"ticker:{tick.symbol}", tick.price, ex=10)
+def flush_loop():
+    while running:
+        time.sleep(60)
+        flush_windows()
 
 
-@app.on_started.connect
-async def on_started(app, **kwargs):
-    start_http_server(6066)
+def process_tick(msg_value: dict):
+    symbol=msg_value.get("symbol")
+    price=float(msg_value.get("price", 0))
+    volume=int(msg_value.get("volume", 2))
+    timestamp=int(msg_value.get("timestamp", 0))
+
+    if not symbol or not price:
+        return
+    
+    window_start=(timestamp//WINDOW_SIZE_MS)*WINDOW_SIZE_MS
+    key=(symbol, window_start)
+    
+    TICKS_PROCESSED.labels(symbol=symbol).inc()
+    redis.set(f"ticker:{symbol}", price, ex=10)
+
+    if key not in windows:
+        windows[key]={
+            "open": price,
+            "high": price,
+            "low": price,
+            "close": price,
+            "volume": volume
+        }
+    else:
+        w=windows[key]
+        w["high"]=max(w["high"], price)
+        w["low"]=min(w["low"], price)
+        w["close"]=price
+        w["volume"]+=volume
+
+
+def run():
+    global running
     ensure_table()
-    logger.info("OHLCV agent started")
+    start_http_server(6066)
+    logger.info("OHLCV agent started - metrics on port 6066")
 
+    flusher=threading.Thread(target=flush_loop, daemon=True)
+    flusher.start()
+
+    consumer=Consumer({
+        "bootstrap.servers": KAFKA_BOOTSTRAP,
+        "group.id": "ohlcv-agent",
+        "auto.offset.reset": "latest",
+        "enable.auto.commit": True
+    })
+    consumer.subscribe(["raw.ticks"])
+
+    def shutdown(signum, frame):
+        global running
+        logger.info("Shutting down OHLCV agent...")
+        running=False
+        flush_windows(force=True)
+        consumer.close()
+    
+    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGTERM, shutdown)
+
+    import json
+    while running:
+        msg=consumer.poll(timeout=1.0)
+        if msg is None:
+            continue
+        if msg.error():
+            logger.error(f"Consumer error: {msg.error()}")
+            continue
+        try:
+            value=json.loads(msg.value().decode("utf-8"))
+            process_tick(value)
+        except Exception as e:
+            logger.error(f"Failed to process tick: {e}")
 
 if __name__=="__main__":
-    app.main()
+    run()

@@ -2,8 +2,6 @@
 confluent-kafka[avro]==2.3.0
 fastavro==1.9.4
 
-# Stream processing
-faust-streaming
 
 # HTTP & WebSocket
 requests==2.31.0
