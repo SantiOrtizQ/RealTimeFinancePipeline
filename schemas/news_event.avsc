@@ -7,7 +7,7 @@
         {"name": "article_id", "type": "string", "doc": "Unique identifier for the article"},
         {"name": "title", "type": "string", "doc": "Article headline"},
         {"name": "description", "type": ["null", "string"], "default": null, "doc": "Article summary"},
-        {"name": "soure", "type": "string", "doc": "Publisher name"},
+        {"name": "source", "type": "string", "doc": "Publisher name"},
         {"name": "url", "type": "string", "doc": "Full article URL"},
         {"name": "published_at", "type": "long", "doc": "Unix timestamp in milliseconds (UTC)"},
         {"name": "symbols", "type": {"type": "array", "items": "string"}, "default": [], "doc": "Related ticker symbols"}

@@ -8,9 +8,9 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
   
-  - job_name: "kafka"
-    static_configs:
-      - targets: ["kafka:9092"]
+#  - job_name: "kafka"
+#    static_configs:
+#      - targets: ["kafka:9101"]
   
   - job_name: "ohlcv-agent"
     static_configs:
