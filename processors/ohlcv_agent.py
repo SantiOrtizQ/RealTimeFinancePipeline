@@ -5,7 +5,11 @@ import signal
 import threading
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from confluent_kafka import Consumer
+
+from confluent_kafka import DeserializingConsumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroDeserializer
+
 from sqlalchemy import create_engine, text
 import redis as redis_client
 
@@ -16,6 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
 KAFKA_BOOTSTRAP=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+SCHEMA_REGISTRY_URL=os.getenv("SCHEMA_REGISTRY_URL", "http://localhost:8081")
+
 TIMESCALE_USER=os.getenv("TIMESCALE_USER", "financeuser")
 TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
@@ -37,6 +43,10 @@ BAR_FLUSH_LATENCY=Histogram(
     "ohlcv_bar_flush_latency_seconds",
     "Latency of flushing a bar to TimescaleDB"
 )
+
+
+
+
 
 engine=create_engine(TIMESCALE_URL)
 
@@ -176,11 +186,15 @@ def run():
     flusher=threading.Thread(target=flush_loop, daemon=True)
     flusher.start()
 
-    consumer=Consumer({
+    sr_client=SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
+    avro_deserializer=AvroDeserializer(sr_client)
+
+    consumer=DeserializingConsumer({
         "bootstrap.servers": KAFKA_BOOTSTRAP,
         "group.id": "ohlcv-agent",
         "auto.offset.reset": "latest",
-        "enable.auto.commit": True
+        "enable.auto.commit": True,
+        "value.deserializer": avro_deserializer
     })
     consumer.subscribe(["raw.ticks"])
 
@@ -194,7 +208,6 @@ def run():
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    import json
     while running:
         msg=consumer.poll(timeout=1.0)
         if msg is None:
@@ -203,8 +216,9 @@ def run():
             logger.error(f"Consumer error: {msg.error()}")
             continue
         try:
-            value=json.loads(msg.value().decode("utf-8"))
-            process_tick(value)
+            value=msg.value()
+            if value:
+                process_tick(value)
         except Exception as e:
             logger.error(f"Failed to process tick: {e}")
 
