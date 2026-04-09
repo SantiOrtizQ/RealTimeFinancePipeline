@@ -2,7 +2,6 @@ import os
 import time
 import hashlib
 import logging
-import signal
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 import requests

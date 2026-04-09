@@ -1,12 +1,17 @@
 import os
-import json
 import signal
 import logging
 from dotenv import load_dotenv
-from confluent_kafka import Consumer
+
+# from confluent_kafka import Consumer
+from confluent_kafka import DeserializingConsumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroDeserializer
+
 from sqlalchemy import create_engine, text
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from prometheus_client import Counter, start_http_server
+
 
 load_dotenv()
 
@@ -14,6 +19,8 @@ logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
 KAFKA_BOOTSTRAP=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+SCHEMA_REGISTRY_URL=os.getenv("SCHEMA_REGISTRY_URL", "http://localhost:8081")
+
 TIMESCALE_USER=os.getenv("TIMESCALE_USER", "financeuser")
 TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
@@ -62,7 +69,7 @@ def ensure_table():
 
 
 
-def score_sentiment(title:str, description: str=None) -> dict:
+def score_sentiment(title: str, description: str=None) -> dict:
     text_to_score=title
     if description:
         text_to_score=f"{title}. {description}"
@@ -98,11 +105,11 @@ def insert_sentiment(event: dict, scores: dict):
             "source": event.get("source", ""),
             "url": event.get("url", ""),
             "symbols": event.get("symbols") or [],
-            "compound": event.get("compound"),
-            "positive": event.get("positive"),
-            "neutral": event.get("neutral"),
-            "negative": event.get("negative"),
-            "sentiment": event.get("sentiment"),
+            "compound": scores.get("compound"),
+            "positive": scores.get("positive"),
+            "neutral": scores.get("neutral"),
+            "negative": scores.get("negative"),
+            "sentiment": scores.get("sentiment"),
             "published_at": event.get("published_at")
         })
         conn.commit()
@@ -131,6 +138,21 @@ def run():
     start_http_server(6068)
     logger.info("Sentiment agent started - metrics on port 6068")
 
+    sr_client=SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
+    avro_deserializer=AvroDeserializer(sr_client)
+
+
+    # NEW IMPLEMENTATION
+    consumer=DeserializingConsumer({
+        "bootstrap.servers": KAFKA_BOOTSTRAP,
+        "group.id": "sentiment-agent",
+        "auto.offset.reset": "latest",
+        "enable.auto.commit": True,
+        "value.deserializer": avro_deserializer
+    })
+    consumer.subscribe(["raw.news"])
+    '''
+    # OLD IMPLEMENTATION
     consumer=Consumer({
         "bootstrap.servers": KAFKA_BOOTSTRAP,
         "group.id": "sentiment-agent",
@@ -138,6 +160,7 @@ def run():
         "enable.auto.commit": True
     })
     consumer.subscribe(["raw.news"])
+    '''
 
     def shutdown(signum, frame):
         global running
@@ -148,6 +171,8 @@ def run():
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
+    logger.info("Sentiment agent listening for Avro messages...")
+
     while running:
         msg=consumer.poll(timeout=1.0)
         if msg is None:
@@ -156,8 +181,10 @@ def run():
             logger.error(f"Consumer error: {msg.error()}")
             continue
         try:
-            value=json.loads(msg.value().decode("utf-8"))
-            process_article(value)
+            # value=json.loads(msg.value().decode("utf-8"))
+            value=msg.value()
+            if value:
+                process_article(value)
         except Exception as e:
             logger.error(f"Failed to process message: {e}")
 
