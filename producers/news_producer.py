@@ -11,7 +11,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYMBOLS = ["AAPL", "TSLA", "MSFT", "GOOGL", "AMZN"]
+SYMBOLS = list(os.getenv("SYMBOLS").split(","))
 POLL_INTERVAL_SECONDS = 900
 NEWSAPI_URL = "https://newsapi.org/v2/everything"
 running=True

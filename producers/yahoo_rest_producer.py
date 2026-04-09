@@ -11,9 +11,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
-SYMBOLS=os.getenv("SYMBOLS")
+SYMBOLS=list(os.getenv("SYMBOLS").split(","))
 POLL_INTERVAL_SECONDS=300
-
+running=True
 
 #create class for Yahoo Producer
 class YahooRestProducer(BaseProducer):
@@ -63,15 +63,23 @@ class YahooRestProducer(BaseProducer):
         logger.info(f"Poll complete - {success_count}/{len(SYMBOLS)} symbols published")
     
     def run(self):
+        global running
         logger.info(f"Starting Yahoo REST producer - polling every {POLL_INTERVAL_SECONDS}s")
-        while True:
-            try:
-                self._poll_once()
-            except Exception as e:
-                logger.error(f"Poll cycle failed: {e}")
-            finally:
-                logger.info(f"Sleeping {POLL_INTERVAL_SECONDS}s until next poll")
-                time.sleep(POLL_INTERVAL_SECONDS)
+        try:
+            while running:
+                try:
+                    self._poll_once()
+                except Exception as e:
+                    logger.error(f"Poll cycle failed: {e}")
+                finally:
+                    logger.info(f"Sleeping {POLL_INTERVAL_SECONDS}s until next poll")
+                    time.sleep(POLL_INTERVAL_SECONDS)
+        except KeyboardInterrupt:
+            logger.info("Keyboard interruption detected.")
+        finally:
+            logger.info("Cleaning up resources...")
+            self.flush()
+            logger.info("Producer shut down successfully.")
     
 
 # Initialize Yahoo Producer

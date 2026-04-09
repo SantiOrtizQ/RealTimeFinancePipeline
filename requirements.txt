@@ -6,7 +6,7 @@ fastavro==1.9.4
 # HTTP & WebSocket
 requests==2.31.0
 websocket-client==1.7.0
-yfinance==0.2.38
+yfinance
 
 # Data
 pandas==2.2.1
