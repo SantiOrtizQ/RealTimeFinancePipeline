@@ -12,7 +12,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
-SYMBOLS=os.getenv("SYMBOLS")
+SYMBOLS=list(os.getenv("SYMBOLS").split(","))
+running=True
 
 WS_URL="wss://stream.data.alpaca.markets/v2/iex"
 
@@ -76,10 +77,14 @@ class AlpacaWsProducer(BaseProducer):
         logger.error(f"WebSocket error: {error}")
     
     def _on_close(self, ws, close_status_code, close_msg):
+        global running
         logger.warning(f"WebSocket closed: {close_status_code} - {close_msg}")
+        running=False
     
     def run(self, reconnect_delay:float=5.0):
-        while True:
+        global running
+
+        while running:
             try:
                 logger.info("Connecting to Alpaca WebSocket...")
                 ws=WebSocketApp(
@@ -90,9 +95,13 @@ class AlpacaWsProducer(BaseProducer):
                     on_close=self._on_close
                 )
                 ws.run_forever()
+            except KeyboardInterrupt:
+                running=False
+                logger.info("Cleaning up resources...")
+                self.flush()
+                logger.info("Producer shut down successfully.")
             except Exception as e:
                 logger.error(f"Connection failed: {e}")
-            finally:
                 self.flush()
                 logger.info(f"Reconnecting in {reconnect_delay}s...")
                 time.sleep(reconnect_delay)

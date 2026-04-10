@@ -51,3 +51,6 @@ list-topics:
 
 clean:
 	docker compose down -v
+
+start-sql:
+	docker exec -it timescaledb psql -U financeuser -d financedb
