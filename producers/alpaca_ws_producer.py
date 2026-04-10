@@ -3,10 +3,12 @@ import json
 import logging
 import time
 
-from datetime import datetime, timezone
+from datetime import datetime
 from dotenv import load_dotenv
 from websocket import WebSocketApp
 from producers.base_producer import BaseProducer
+
+from processors.dlq_agent import publish_to_dlq
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -15,7 +17,7 @@ logger=logging.getLogger(__name__)
 SYMBOLS=list(os.getenv("SYMBOLS").split(","))
 running=True
 
-WS_URL="wss://stream.data.alpaca.markets/v2/iex"
+WS_URL=os.getenv("WS_URL", "wss://stream.data.alpaca.markets/v2/iex")
 
 
 # create class for alpaca
@@ -72,6 +74,11 @@ class AlpacaWsProducer(BaseProducer):
             logger.info(f"Published tick: {record['symbol']} @ {record['price']}")
         except Exception as e:
             logger.error(f"Failed to handel trade event: {e} | raw: {event}")
+            publish_to_dlq(
+                raw_message=event,
+                error=str(e),
+                source_topic="raw.ticks"
+            )
     
     def _on_error(self, ws, error):
         logger.error(f"WebSocket error: {error}")
