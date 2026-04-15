@@ -27,18 +27,20 @@ def get_ohlcv(
         with engine.connect() as conn:
             rows=conn.execute(text("""
                 SELECT
-                    symbol, open, high, low, close, volume, window_start, window_end
+                    symbol,
+                    open, high, low, close, volume,
+                    window_start, window_end
                 FROM ohlcv_bars
-                WHERE symbol=:symbol
-                    AND window_start>=:start::TIMESTAMPTZ
-                    AND window_end<=:end::TIMESTAMPTZ
+                WHERE symbol = :symbol
+                  AND window_start >= :start::timestamptz
+                  AND window_end   <= :end::timestamptz
                 ORDER BY window_start ASC
-                LIMIT :limit                
+                LIMIT :limit
             """), {
                 "symbol": symbol,
-                "start": start,
-                "end": end,
-                "limit": limit
+                "start":  start,
+                "end":    end,
+                "limit":  limit,
             }).fetchall()
         
         if not rows:

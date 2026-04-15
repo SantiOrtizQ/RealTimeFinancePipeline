@@ -4,7 +4,11 @@ import signal
 import logging
 from collections import deque
 from dotenv import load_dotenv
-from confluent_kafka import Consumer
+
+from confluent_kafka import DeserializingConsumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroDeserializer
+
 from sqlalchemy import create_engine, text
 from prometheus_client import Counter, start_http_server
 
@@ -14,6 +18,8 @@ logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 
 KAFKA_BOOTSTRAP=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+SCHEMA_REGISTRY_URL=os.getenv("SCHEMA_REGISTRY_URL")
+
 TIMESCALE_USER=os.getenv("TIMESCALE_USER", "financeuser")
 TIMESCALE_PASS=os.getenv("TIMESCALE_PASSWORD", "financepass")
 TIMESCALE_DB=os.getenv("TIMESCALE_DB", "financedb")
@@ -123,11 +129,16 @@ def run():
     start_http_server(6067)
     logger.info("Anomaly agent started - metrics on port 6067")
 
-    consumer=Consumer({
+
+    sr_client=SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
+    avro_deserializer=AvroDeserializer(sr_client)
+
+    consumer=DeserializingConsumer({
         "bootstrap.servers": KAFKA_BOOTSTRAP,
         "group.id": "anomaly-agent",
         "auto.offset.reset": "latest",
-        "enable.auto.commit": True
+        "enable.auto.commit": True,
+        "value.deserializer": avro_deserializer
     })
     consumer.subscribe(["raw.ticks"])
 
@@ -148,7 +159,7 @@ def run():
             logger.error(f"Consumer error: {msg.error()}")
             continue
         try:
-            value=json.loads(msg.value().decode("utf-8"))
+            value=msg.value()
             process_tick(value)
         except Exception as e:
             logger.error(f"Failed to process message: {e}")

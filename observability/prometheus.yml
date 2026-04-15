@@ -10,34 +10,34 @@ scrape_configs:
   
   - job_name: "kafka"
     static_configs:
-      - targets: ["kafka:9101"]
+      - targets: ["kafka-exporter:9308"]
   
   - job_name: "ohlcv-agent"
     static_configs:
-      - targets: ["localhost:6066"]
+      - targets: ["host.docker.internal:6066"]
     metrics_path: /metrics
   
   - job_name: "anomaly-agent"
     static_configs:
-      - targets: ["loclahost:6067"]
+      - targets: ["host.docker.internal:6067"]
     metrics_path: /metrics
   
   - job_name: "sentiment-agent"
     static_configs:
-      - targets: ["localhost:6068"]
+      - targets: ["host.docker.internal:6068"]
     metrics_path: /metrics
   
   - job_name: "dlq-agent"
     static_configs:
-      - targets: ["localhost:6069"]
+      - targets: ["host.docker.internal:6069"]
     metrics_path: /metrics
   
   - job_name: "fastapi"
     static_configs:
-      - targets: ["localhost:8000"]
+      - targets: ["host.docker.internal:8000"]
     metrics_path: /metrics
   
   - job_name: "timescaledb"
     static_configs:
-      - targets: ["localhost:9187"]
+      - targets: ["host.docker.internal:9187"]
     metrics_path: /metrics

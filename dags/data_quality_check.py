@@ -1,4 +1,4 @@
-from airflow.sdk import task, dag
+from airflow.sdk import task, dag, chain
 from datetime import datetime
 import logging
 import os
@@ -113,6 +113,7 @@ def evaluate_results(ohlcv_results: dict, sentiment_results: dict):
 
 
 @dag(
+    dag_id="data_quality_check",
     start_date=datetime(2026, 1, 1),
     schedule='@daily',
     catchup=False,
@@ -121,6 +122,7 @@ def evaluate_results(ohlcv_results: dict, sentiment_results: dict):
 def data_quality_check():
     ohlcv_results=run_ohlcv_quality_checks()
     sentiment_results=run_sentiment_quality_checks()
-    evaluate_results(ohlcv_results, sentiment_results)
+    evaluation=evaluate_results(ohlcv_results, sentiment_results)
+    
 
 data_quality_check()
