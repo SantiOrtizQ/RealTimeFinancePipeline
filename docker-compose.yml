@@ -95,6 +95,19 @@ services:
       interval: 10s
       retries: 5
 
+# timescaleDB postgres-exporter for prometheus metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres-exporter
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${TIMESCALE_USER}:${TIMESCALE_PASSWORD}@timescaledb:5432/${TIMESCALE_DB}?sslmode=disable"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: on-failure
+
   redis:
     image: redis:7.2-alpine
     container_name: redis

@@ -73,7 +73,7 @@ class AlpacaWsProducer(BaseProducer):
             self.publish(record=record, key=record["symbol"])
             logger.info(f"Published tick: {record['symbol']} @ {record['price']}")
         except Exception as e:
-            logger.error(f"Failed to handel trade event: {e} | raw: {event}")
+            logger.error(f"Failed to handle trade event: {e} | raw: {event}")
             publish_to_dlq(
                 raw_message=event,
                 error=str(e),
