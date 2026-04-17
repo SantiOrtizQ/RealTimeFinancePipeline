@@ -32,8 +32,8 @@ def get_ohlcv(
                     window_start, window_end
                 FROM ohlcv_bars
                 WHERE symbol = :symbol
-                  AND window_start >= :start::timestamptz
-                  AND window_end   <= :end::timestamptz
+                  AND window_start >= CAST(:start AS TIMESTAMPTZ)
+                  AND window_end   <= CAST(:end AS TIMESTAMPTZ)
                 ORDER BY window_start ASC
                 LIMIT :limit
             """), {

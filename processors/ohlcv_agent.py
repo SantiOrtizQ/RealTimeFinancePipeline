@@ -52,7 +52,7 @@ engine=create_engine(TIMESCALE_URL)
 
 redis=redis_client.Redis(
     host=os.getenv("REDIS_HOST", "localhost"),
-    port=int(os.getenv("REDIST_PORT", 6379)),
+    port=int(os.getenv("REDIS_PORT", 6379)),
     decode_responses=True
 )
 
@@ -83,7 +83,7 @@ def ensure_table():
     logger.info("ohlcv_bars hypertable ready")
 
 
-def insert_bar(symbol, open, high, low, close, volume, ws, we):
+def insert_bar(symbol, open_, high, low, close, volume, ws, we):
     with engine.connect() as conn:
         conn.execute(text("""
             INSERT INTO ohlcv_bars
@@ -93,7 +93,7 @@ def insert_bar(symbol, open, high, low, close, volume, ws, we):
                           to_timestamp(:ws/1000.0), to_timestamp(:we/1000.0))
         """), {
             "symbol": symbol,
-            "open": open,
+            "open": open_,
             "high": high,
             "low": low,
             "close": close,
@@ -152,14 +152,20 @@ def process_tick(msg_value: dict):
     volume=int(msg_value.get("volume", 2))
     timestamp=int(msg_value.get("timestamp", 0))
 
+    #logger.info(f"process_tick called: {symbol} @ {price}")
+
     if not symbol or not price:
+        logger.warning(f"Skipping tick - missing symbol or price: {msg_value}")
         return
     
     window_start=(timestamp//WINDOW_SIZE_MS)*WINDOW_SIZE_MS
     key=(symbol, window_start)
     
     TICKS_PROCESSED.labels(symbol=symbol).inc()
-    redis.set(f"ticker:{symbol}", price, ex=10)
+    try:
+        redis.set(f"ticker:{symbol}", price, ex=60)
+    except Exception as e:
+        logger.warning(f"Redis write failed for {symbol}: {e}")
 
     if key not in windows:
         windows[key]={
@@ -182,6 +188,13 @@ def run():
     ensure_table()
     start_http_server(6066)
     logger.info("OHLCV agent started - metrics on port 6066")
+
+    # check redis health
+    try:
+        redis.ping()
+        logger.info("Redis connection OK")
+    except Exception as e:
+        logger.error(f"Redis connection failed: {e} - price caceh will not work")
 
     flusher=threading.Thread(target=flush_loop, daemon=True)
     flusher.start()

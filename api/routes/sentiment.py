@@ -35,7 +35,7 @@ def get_sentiment(
                     published_at
                 FROM news_sentiment
                 WHERE :symbol=ANY(symbols)
-                    AND published_at::date=:date::DATE
+                    AND CAST(published_at AS DATE)=CAST(:date AS DATE)
                 ORDER BY published_at DESC
                 LIMIT :limit
             """), {
