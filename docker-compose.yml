@@ -1,5 +1,11 @@
+
+#------------------- AIRFLOW GENERAL CONFIG ------------------------------------
+
 x-airflow-common: &airflow-common
-  image: apache/airflow:latest
+  image: apache/airflow:3.2.0
+  user: "${AIRFLOW_UID:-50000}:0"
+  env_file:
+    - .env
   environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
@@ -8,6 +14,13 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__TEST_CONNECTION: Enabled
     AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: "http://airflow-api-server:8080/execution/"
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    AIRFLOW__LOGGING__LOG_FILENAME_TEMPLATE: "dag_id={{ ti.dag_id }}/run_id={{ ti.run_id }}/task_id={{ ti.task_id }}/attempt={{ try_number }}.log"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    _PIP_ADDITIONAL_REQUIREMENTS: "sqlalchemy psycopg2-binary"
     TIMESCALE_USER: ${TIMESCALE_USER}
     TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD}
     TIMESCALE_DB: ${TIMESCALE_DB}
@@ -18,8 +31,15 @@ x-airflow-common: &airflow-common
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
   depends_on:
+    &airflow-common-depends-on
     airflow-db:
       condition: service_healthy
+
+
+
+
+
+
 
 services:
 
@@ -135,6 +155,14 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
+
+
+
+
+
+# ----------------------------- AIRFLOW ESSENTIAL CONTAINERS --------------------------------
+
+
   airflow-db:
     image: postgres:16
     container_name: airflow-db
@@ -158,27 +186,73 @@ services:
       - airflow db migrate
     restart: "no"
 
-
-
   airflow-api-server:
     <<: *airflow-common
     container_name: airflow-api-server
     command: api-server
     ports:
       - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
     restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
   airflow-dag-processor:
     <<: *airflow-common
     container_name: airflow-dag-processor
     command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --limit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
     restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
 
   airflow-scheduler:
     <<: *airflow-common
     container_name: airflow-scheduler
     command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --limit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
     restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: airflow-triggerer
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type TriggererJob --limit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+
 
 volumes:
   timescale_data:
