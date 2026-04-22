@@ -162,7 +162,7 @@ services:
     image: redis:8.6.2
     container_name: redis-kafka
     ports:
-      - "6380:6380"
+      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
