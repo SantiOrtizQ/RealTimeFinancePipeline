@@ -12,7 +12,7 @@ x-airflow-common:
     AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis-airflow:6379/0
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
@@ -36,7 +36,7 @@ x-airflow-common:
   user: "${AIRFLOW_UID:-50000}"
   depends_on:
     &airflow-common-depends-on
-    redis:
+    redis-airflow:
       condition: service_healthy
     airflow-db:
       condition: service_healthy
@@ -145,11 +145,24 @@ services:
 
 # --------------- REDIS SERVICE FOR BOTH AIRFLOW AND PROMETHEUS ----------------
 
-  redis:
+  redis-airflow:
     image: redis:8.6.2
-    container_name: redis
+    container_name: redis-airflow
     expose:
       - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 25s
+      retries: 40
+      start_period: 20s
+    restart: always
+
+  redis-kafka:
+    image: redis:8.6.2
+    container_name: redis-kafka
+    ports:
+      - "6380:6380"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

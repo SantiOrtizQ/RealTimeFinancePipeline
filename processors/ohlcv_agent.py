@@ -52,7 +52,7 @@ engine=create_engine(TIMESCALE_URL)
 
 redis=redis_client.Redis(
     host=os.getenv("REDIS_HOST", "localhost"),
-    port=int(os.getenv("REDIS_PORT", 6379)),
+    port=int(os.getenv("REDIS_PORT", 6380)),
     decode_responses=True
 )
 
@@ -194,7 +194,7 @@ def run():
         redis.ping()
         logger.info("Redis connection OK")
     except Exception as e:
-        logger.error(f"Redis connection failed: {e} - price caceh will not work")
+        logger.error(f"Redis connection failed: {e} - price cache will not work")
 
     flusher=threading.Thread(target=flush_loop, daemon=True)
     flusher.start()

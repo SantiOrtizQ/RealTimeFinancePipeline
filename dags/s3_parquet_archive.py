@@ -81,7 +81,8 @@ def write_parquet_to_s3(bars_json: str, execution_date=None) -> str:
     description="Archive hourly OHLCV from TimescaleDB to S3 as Parquet"
 )
 def s3_parquet_archive():
-    bars=extract_ohlcv_bars()
-    write_parquet_to_s3(bars)
+    now=datetime.now()
+    bars=extract_ohlcv_bars(now)
+    write_parquet_to_s3(bars, now)
 
 s3_parquet_archive()
