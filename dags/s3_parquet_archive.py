@@ -21,7 +21,7 @@ def extract_ohlcv_bars(execution_date=None) -> str:
 
     window_end=execution_date.replace(minute=0, second=0, microsecond=0)
     window_start=window_end-timedelta(hours=1)
-
+    
     engine=create_engine(TIMESCALE_URL)
     with engine.connect() as conn:
         df=pd.read_sql(text("""
