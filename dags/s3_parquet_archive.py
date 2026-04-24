@@ -19,13 +19,21 @@ def extract_ohlcv_bars(execution_date=None) -> str:
     from sqlalchemy import create_engine, text
     import pandas as pd
 
-    window_end=execution_date.replace(minute=0, second=0, microsecond=0)
+    window_end=execution_date#.replace(minute=0, second=0, microsecond=0)
     window_start=window_end-timedelta(hours=1)
     
     engine=create_engine(TIMESCALE_URL)
     with engine.connect() as conn:
         df=pd.read_sql(text("""
-            SELECT *
+            SELECT
+                symbol,
+                open,
+                high,
+                low,
+                close,
+                volume, 
+                EXTRACT(EPOCH FROM window_start) AS window_start,
+                EXTRACT(EPOCH FROM window_end) AS window_end
             FROM ohlcv_bars
             WHERE window_start>=:start
                 AND window_end<:end
@@ -35,6 +43,7 @@ def extract_ohlcv_bars(execution_date=None) -> str:
             "end": window_end.isoformat()
         })
     logger.info(f"Extracted {len(df)} bars from window {window_start} -> {window_end}")
+    logger.info(f"This is the window_end format: {df.iloc[2]}")
     return df.to_json(orient="records")
 
 @task
