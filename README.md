@@ -50,11 +50,59 @@ The streaming pipeline is designed to retrieve stock market and news information
 
 
 <h3>Topics</h3>
+There are 3 total topics involved that are defined and created in the Makefile with the .Phony: make topics. The first one is <strong>raw.ticks</strong>, for which the produced ticks from the yahoo_rest_producer and the alpaca_ws_producer publish on. On the other hand, all the DLQs are published up to the <strong>raw.dlq</strong> topic. Additionally, there's a <strong>raw.news</strong> topic into which news_producer registers are published.
 
 <h2>docker-compose</h2>
+Here, I am going to list the main containers that have been defined inside the docker-compose file for the project to work properly:
+- Airflow.
+- Kafka.
+- Schema-Registry.
+- TimescaleDB.
+- Redis.
+- Prometheus.
+- Grafana.
+Of course, most of these services involve several containers. For instance, to define the whole Airflow service, it is necessary to define the apiserver, triggerer, dag-processor, redis (for cache), etc. On the other hand, for services like Kafka and TimescaleDB, it was necessary to add exporters so that the Prometheus container meant for observability could detect the flows in those containers and so obtain metrics.
+
+&emsp;Furthermore, there are 2 Redis containers defined in there, so that one is specifically to be used by the Kafka service, and the other one for the Airflow service and so there are no collissions.
+
+&emsp;As this projet is not meant to go to production yet, no networks were defined. Nonetheless,  some volumes needed to be defined to save database information, as well as airflow dags historical works.
+
 
 <h2>Airflow DAGs</h2>
 
-<h2>Observability</h2>
+It has been considered 3 dags in total to work in this project. The first one is called data_quality_check, and as its name indicates, it is meant to check data quality in the ohlcv bars as well as the news sentiment agent. It checks up the TimescaleDB and look for rows with specific aspects or wrong registers. The DAG fails if there are any data quality failures.
 
-<h2>
+&emsp;On the other hand, there is a s3_parquet_archive DAG, for which the new ohlcv records are published into a .parquet file that is saved into an S3 Bucket with a parquet structure. It is triggered every hour looking for the registers of the last hour of execution of the application that are in the TimescaleDB.
+
+&emsp;Finally, there's a snowflake_load DAG that takes the registers inside the S3 Bucket and published them into a fact table on Snowflake, so that later real-time analytics can take place.
+
+<h2>Observability</h2>
+Observability is handle through a Prometheus container that takes information from the following containers and agents: kafka, ohlcv_agent, anomaly_agent, sentiment_agent, dlq_agent, fastapi, and timescaledb. Most of the ports listed in the prometheus.yml file are initialized with the processors (consumers) applications. In this way, it is possible to perform some requests to the agents and confirm everything is working as expected.
+
+&emsp; The fastAPI that is implemented here is meant to give a better experience at observability, as it allows the user to perform requests for real-time registers for ohlcv ticks or news that are being processed at that very moment.
+
+
+<h2>Images of the Project</h2>
+Here are some images of the UIs and the processes working.
+
+<h3>Airflow</h3>
+<img src="images/Airflow-1.png" alt="Airflow UI DAGs" align="center">
+
+<h3>Docker</h3>
+<img src="images/Docker-1.png" alt="Docker UI containers" align="center">
+
+<h3>FastAPI</h3>
+<img src="images/FastAPI-1.png" alt="FastAPI UI monitoring" align="center">
+
+<h3>Grafana</h3>
+<img src="images/Grafana-1.png" alt="Grafana UI connected to Prometheus" align="center">
+
+<h3>Prometheus</h3>
+<img src="images/Prometheus-1.png" alt="Prometheus UI with query" align="center">
+
+
+<h2>Author</h2>
+Santiago Ortiz Quintero | Engineering Physicist | Data Engineer/Analyst<br>
+
+https://github.com/SantiOrtizQ<br>
+https://www.linkedin.com/in/santiortizq/

@@ -36,13 +36,6 @@ topics:
 		--partitions 1 \
 		--replication-factor 1 \
 		--if-not-exists
-	
-	docker exec kafka kafka-topics --create \
-		--bootstrap-server localhost:9092 \
-		--topic processed.ohlcv \
-		--partitions 3 \
-		--replication-factor 1 \
-		--if-not-exists
 
 list-topics:
 	docker exec kafka kafka-topics --list \
